@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sqlite-restore-selected
+  namespace: pra
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: restore
+          image: alpine
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              if [ -z "$BACKUP_FILE" ]; then
+                echo "La variable BACKUP_FILE est obligatoire"
+                exit 1
+              fi
+              if [ ! -f "/backup/$BACKUP_FILE" ]; then
+                echo "Backup introuvable: /backup/$BACKUP_FILE"
+                ls -lh /backup || true
+                exit 1
+              fi
+              cp "/backup/$BACKUP_FILE" /data/app.db
+              echo "Restauration terminée depuis /backup/$BACKUP_FILE"
+          env:
+            - name: BACKUP_FILE
+              value: "app-REMPLACEZ_MOI.db"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: backup
+              mountPath: /backup
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pra-data
+        - name: backup
+          persistentVolumeClaim:
+            claimName: pra-backup
