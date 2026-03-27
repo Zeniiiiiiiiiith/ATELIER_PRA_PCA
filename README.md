@@ -231,27 +231,98 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*..Répondez à cet exercice ici..*
+*La perte d'un pod Flask seul n'entraîne pas de perte de données car les données ne sont pas stockées dans le système de fichiers éphémère du conteneur mais dans le PVC pra-data. En revanche, la perte de certains composants entraîne bien une perte de données ou un risque majeur de perte:
+
+- Le PVC pra-data: volume principal qui contient le fichier SQLite app.db. Sa suppression provoque la perte immédiate de la base en production.
+- Le PV/support physique associé au PVC pra-data: même effet que ci-dessus car le contenu réel du PVC disparaît.
+- Le PVC pra-backup: sa perte ne supprime pas forcément la base de production immédiatement, mais elle supprime la capacité de restauration. En cas d'incident ultérieur sur pra-data, les données seraient alors perdues définitivement.
+- Le stockage local du cluster K3d/du noeud hôte: dans cet atelier, les volumes restent locaux. Une panne de la machine hôte, une corruption disque ou une suppression du cluster peut donc impacter à la fois pra-data et pra-backup.
+
+Les composants critiques pour les données sont donc principalement pra-data (données en production) et pra-backup (capacité de reprise), ainsi que l'infrastructure de stockage sous-jacente.*
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*..Répondez à cet exercice ici..*
+*Au moment exact où pra-data est supprimé, les données de production sont bien perdues. En revanche, nous ne les avons pas perdues définitivement, car une copie existait déjà dans pra-backup grâce au CronJob sqlite-backup qui sauvegarde la base toutes les minutes.
+
+Le mécanisme est donc le suivant:
+
+1. La base active est stockée dans pra-data.
+2. Des sauvegardes régulières sont copiées depuis pra-data vers pra-backup.
+3. Lors du sinistre, pra-data est supprimé: l'application ne retrouve plus sa base de données.
+4. On recrée un volume pra-data vide.
+5. On exécute ensuite le job de restauration qui recopie un fichier .db depuis pra-backup vers pra-data.
+
+Donc, la raison pour laquelle les données réapparaissent après l'incident n'est pas que Kubernetes protège automatiquement le contenu du PVC supprimé mais bien que nous avions anticipé le sinistre avec une sauvegarde séparée.
+
+Il y a eu une perte de la base de production, mais pas une perte définitive des données car elles ont été restaurées depuis le volume de sauvegarde.*
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*..Répondez à cet exercice ici..*
+*Les valeurs de RTO et RPO dépendent ici du scénario observé.
+
+1) En cas de crash du pod (PCA)
+- RTO: très faible, généralement de quelques secondes, le temps que Kubernetes recrée le pod.
+- RPO: 0 car aucune donnée n'est perdue : la base reste stockée sur le PVC pra-data.
+
+2) En cas de perte de pra-data (PRA)
+- RTO : non nul car une intervention manuelle est nécessaire : arrêt du déploiement, suspension du CronJob, recréation de l'infrastructure, exécution du job de restauration, vérification puis reprise des sauvegardes. Dans cet atelier, on peut estimer un RTO de quelques minutes, selon la rapidité d'exécution de l'opérateur.
+- RPO: jusqu'à 1 minute car la sauvegarde est effectuée toutes les minutes. On peut donc perdre au maximum les écritures réalisées depuis le dernier backup.
+
+En résumé:
+- Scénario PCA (perte du pod) => RTO court, RPO = 0.
+- Scénario PRA (perte de pra-data) => RTO de quelques minutes, RPO ≈ 1 minute maximum.*
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*..Répondez à cet exercice ici..*
+*Cet atelier est très utile pour comprendre les principes mais il ne peut pas être utilisé tel quel en production car il manque plusieurs garanties indispensables:
+
+- Pas de redondance géographique ni de vrai site de secours: les données et les sauvegardes restent dans le même environnement Kubernetes local.
+- Backups non externalisés: pra-data et pra-backup peuvent être perdus ensemble si l'hôte, le cluster ou le stockage local tombent.
+- Base SQLite non adaptée à une production distribuée: SQLite est simple et pratique pour un atelier mais limitée pour une application critique multi-utilisateurs.
+- Restauration manuelle: il faut déclencher plusieurs commandes à la main. En production, il faut un runbook industrialisé, testé et si possible automatisé.
+- Pas de supervision complète: il manque des alertes, des métriques, des journaux centralisés et des contrôles de succès des sauvegardes/restaurations.
+- Pas de tests réguliers de PRA: une sauvegarde n'a de valeur que si la restauration est testée fréquemment.
+- Pas de sécurité avancée: pas de chiffrement des sauvegardes, pas de gestion d'accès fine, pas de politique de rétention, pas d'immuabilité.
+- Pas d'objectifs contractuels garantis: les RTO/RPO sont observés dans un atelier mais pas garantis par une architecture robuste.
+
+Ce qui manque principalement: un stockage répliqué, des sauvegardes externalisées, une architecture multi-zones/multi-sites, une base de données adaptée à la production, de la supervision, de l'automatisation et des tests réguliers de reprise.*
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*..Répondez à cet exercice ici..*
+*Une architecture plus robuste pourrait être la suivante:
+
+1) Couche applicative
+- Plusieurs réplicas de l'application Flask derrière un Service Kubernetes.
+- Répartition de charge et éventuellement un Ingress pour l'exposition applicative.
+- Déploiement sur plusieurs nœuds et idéalement sur plusieurs zones de disponibilité.
+
+2) Couche base de données
+- Remplacer SQLite par une base de données de production, par exemple PostgreSQL.
+- Mettre en place une **réplication** (primaire + réplique) ou utiliser un service managé.
+- Prévoir une haute disponibilité de la base avec bascule automatique.
+
+3) Sauvegarde / PRA
+- Sauvegardes régulières vers un stockage externe (par exemple un bucket objet).
+- Politique de rétention claire : journalière, hebdomadaire, mensuelle.
+- Possibilité de restauration à un instant choisi et non uniquement depuis le dernier backup.
+- Vérification automatique de l'intégrité des sauvegardes.
+
+4) PCA / infrastructure
+- Cluster Kubernetes haute disponibilité.
+- Stockage persistant répliqué.
+- Déploiement sur deux sites ou deux régions selon les besoins métiers.
+
+5) Supervision et sécurité
+- Supervision des pods, volumes, jobs de backup et temps de restauration.
+- Alertes en cas d'échec de sauvegarde ou d'absence de backup récent.
+- Chiffrement des données et des sauvegardes.
+- Contrôle d'accès fort et journalisation centralisée.
+
+Conclusion: une architecture robuste repose sur la combinaison de haute disponibilité (PCA), sauvegardes externalisées, procédures de restauration testées, stockage répliqué et base de données adaptée à la production.*
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
