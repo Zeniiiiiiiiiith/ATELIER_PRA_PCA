@@ -26,7 +26,7 @@ spec:
               echo "Restauration terminée depuis /backup/$BACKUP_FILE"
           env:
             - name: BACKUP_FILE
-              value: "app-REMPLACEZ_MOI.db"
+              value: "app-1774605541.db"
           volumeMounts:
             - name: data
               mountPath: /data
@@ -39,3 +39,4 @@ spec:
         - name: backup
           persistentVolumeClaim:
             claimName: pra-backup
+            

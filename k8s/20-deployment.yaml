@@ -15,21 +15,27 @@ spec:
     spec:
       containers:
         - name: flask
-          image: pra/flask-sqlite:1.0
+          image: pra/flask-sqlite:1.1
           imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-lc"]
+          args:
+            - |
+              cd /opt/app && gunicorn -w 2 -b 0.0.0.0:8080 app:app
           env:
             - name: DB_PATH
               value: /data/app.db
           ports:
             - containerPort: 8080
-          command: ["/bin/sh","-lc"]
-          args:
-            - |
-              cd /opt/app && gunicorn -w 2 -b 0.0.0.0:8080 app:app
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: backup
+              mountPath: /backup
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: pra-data
+        - name: backup
+          persistentVolumeClaim:
+            claimName: pra-backup
+            

@@ -231,19 +231,19 @@ Faites preuve de pédagogie et soyez clair dans vos explications et procedures d
 **Exercice 1 :**  
 Quels sont les composants dont la perte entraîne une perte de données ?  
   
-*La perte d'un pod Flask seul n'entraîne pas de perte de données car les données ne sont pas stockées dans le système de fichiers éphémère du conteneur mais dans le PVC pra-data. En revanche, la perte de certains composants entraîne bien une perte de données ou un risque majeur de perte:
+La perte d'un pod Flask seul n'entraîne pas de perte de données car les données ne sont pas stockées dans le système de fichiers éphémère du conteneur mais dans le PVC pra-data. En revanche, la perte de certains composants entraîne bien une perte de données ou un risque majeur de perte:
 
 - Le PVC pra-data: volume principal qui contient le fichier SQLite app.db. Sa suppression provoque la perte immédiate de la base en production.
 - Le PV/support physique associé au PVC pra-data: même effet que ci-dessus car le contenu réel du PVC disparaît.
 - Le PVC pra-backup: sa perte ne supprime pas forcément la base de production immédiatement, mais elle supprime la capacité de restauration. En cas d'incident ultérieur sur pra-data, les données seraient alors perdues définitivement.
 - Le stockage local du cluster K3d/du noeud hôte: dans cet atelier, les volumes restent locaux. Une panne de la machine hôte, une corruption disque ou une suppression du cluster peut donc impacter à la fois pra-data et pra-backup.
 
-Les composants critiques pour les données sont donc principalement pra-data (données en production) et pra-backup (capacité de reprise), ainsi que l'infrastructure de stockage sous-jacente.*
+Les composants critiques pour les données sont donc principalement pra-data (données en production) et pra-backup (capacité de reprise), ainsi que l'infrastructure de stockage sous-jacente.
 
 **Exercice 2 :**  
 Expliquez nous pourquoi nous n'avons pas perdu les données lors de la supression du PVC pra-data  
   
-*Au moment exact où pra-data est supprimé, les données de production sont bien perdues. En revanche, nous ne les avons pas perdues définitivement, car une copie existait déjà dans pra-backup grâce au CronJob sqlite-backup qui sauvegarde la base toutes les minutes.
+Au moment exact où pra-data est supprimé, les données de production sont bien perdues. En revanche, nous ne les avons pas perdues définitivement, car une copie existait déjà dans pra-backup grâce au CronJob sqlite-backup qui sauvegarde la base toutes les minutes.
 
 Le mécanisme est donc le suivant:
 
@@ -255,12 +255,12 @@ Le mécanisme est donc le suivant:
 
 Donc, la raison pour laquelle les données réapparaissent après l'incident n'est pas que Kubernetes protège automatiquement le contenu du PVC supprimé mais bien que nous avions anticipé le sinistre avec une sauvegarde séparée.
 
-Il y a eu une perte de la base de production, mais pas une perte définitive des données car elles ont été restaurées depuis le volume de sauvegarde.*
+Il y a eu une perte de la base de production, mais pas une perte définitive des données car elles ont été restaurées depuis le volume de sauvegarde.
 
 **Exercice 3 :**  
 Quels sont les RTO et RPO de cette solution ?  
   
-*Les valeurs de RTO et RPO dépendent ici du scénario observé.
+Les valeurs de RTO et RPO dépendent ici du scénario observé.
 
 1) En cas de crash du pod (PCA)
 - RTO: très faible, généralement de quelques secondes, le temps que Kubernetes recrée le pod.
@@ -272,12 +272,12 @@ Quels sont les RTO et RPO de cette solution ?
 
 En résumé:
 - Scénario PCA (perte du pod) => RTO court, RPO = 0.
-- Scénario PRA (perte de pra-data) => RTO de quelques minutes, RPO ≈ 1 minute maximum.*
+- Scénario PRA (perte de pra-data) => RTO de quelques minutes, RPO ≈ 1 minute maximum.
 
 **Exercice 4 :**  
 Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai environnement de production ? Que manque-t-il ?   
   
-*Cet atelier est très utile pour comprendre les principes mais il ne peut pas être utilisé tel quel en production car il manque plusieurs garanties indispensables:
+Cet atelier est très utile pour comprendre les principes mais il ne peut pas être utilisé tel quel en production car il manque plusieurs garanties indispensables:
 
 - Pas de redondance géographique ni de vrai site de secours: les données et les sauvegardes restent dans le même environnement Kubernetes local.
 - Backups non externalisés: pra-data et pra-backup peuvent être perdus ensemble si l'hôte, le cluster ou le stockage local tombent.
@@ -288,12 +288,12 @@ Pourquoi cette solution (cet atelier) ne peux pas être utilisé dans un vrai en
 - Pas de sécurité avancée: pas de chiffrement des sauvegardes, pas de gestion d'accès fine, pas de politique de rétention, pas d'immuabilité.
 - Pas d'objectifs contractuels garantis: les RTO/RPO sont observés dans un atelier mais pas garantis par une architecture robuste.
 
-Ce qui manque principalement: un stockage répliqué, des sauvegardes externalisées, une architecture multi-zones/multi-sites, une base de données adaptée à la production, de la supervision, de l'automatisation et des tests réguliers de reprise.*
+Ce qui manque principalement: un stockage répliqué, des sauvegardes externalisées, une architecture multi-zones/multi-sites, une base de données adaptée à la production, de la supervision, de l'automatisation et des tests réguliers de reprise.
   
 **Exercice 5 :**  
 Proposez une archtecture plus robuste.   
   
-*Une architecture plus robuste pourrait être la suivante:
+Une architecture plus robuste pourrait être la suivante:
 
 1) Couche applicative
 - Plusieurs réplicas de l'application Flask derrière un Service Kubernetes.
@@ -322,7 +322,7 @@ Proposez une archtecture plus robuste.
 - Chiffrement des données et des sauvegardes.
 - Contrôle d'accès fort et journalisation centralisée.
 
-Conclusion: une architecture robuste repose sur la combinaison de haute disponibilité (PCA), sauvegardes externalisées, procédures de restauration testées, stockage répliqué et base de données adaptée à la production.*
+Conclusion: une architecture robuste repose sur la combinaison de haute disponibilité (PCA), sauvegardes externalisées, procédures de restauration testées, stockage répliqué et base de données adaptée à la production.
 
 ---------------------------------------------------
 Séquence 6 : Ateliers  
@@ -340,7 +340,117 @@ Difficulté : Moyenne (~2 heures)
 ### **Atelier 2 : Choisir notre point de restauration**  
 Aujourd’hui nous restaurobs “le dernier backup”. Nous souhaitons **ajouter la capacité de choisir un point de restauration**.
 
-*..Décrir ici votre procédure de restauration (votre runbook)..*  
+Identifier le point de restauration souhaité:
+La première étape consiste à lister les sauvegardes disponibles sur le volume pra-backup. Pour cela, un pod temporaire de diagnostic est utilisé afin de monter le PVC de sauvegarde et afficher le contenu du répertoire /backup. Les fichiers de sauvegarde sont nommés sous la forme app-<timestamp>.db. Il faut sélectionner le fichier correspondant au point de restauration souhaité.
+
+Commandes utilisées:
+```
+kubectl apply -f pra/debug-backup-pod.yaml
+kubectl -n pra get pod backup-inspector
+kubectl -n pra exec backup-inspector -- ls -lh /backup
+```
+
+Préparer le job de restauration:
+Le fichier YAML du job de restauration doit contenir:
+un montage du PVC pra-backup sur /backup pour accéder aux sauvegardes;
+un montage du PVC pra-data sur /data pour écrire la base active;
+une variable d’environnement BACKUP_FILE contenant le nom exact du fichier à restaurer.
+Le job copie ensuite le fichier /backup/<BACKUP_FILE> vers /data/app.db.
+
+Exemple de valeur à renseigner dans le fichier YAML:
+value: "app-1774605541.db"
+
+Arrêter temporairement l’application:
+Avant de restaurer la base, il est recommandé de couper l’application afin d’éviter tout accès concurrent à la base SQLite pendant la copie. Pour cela, le déploiement Flask est mis à 0 réplica.
+
+Commandes utilisées:
+```
+kubectl -n pra scale deployment/flask --replicas=0
+kubectl -n pra get pods
+```
+
+Lancer la restauration:
+Une fois l’application arrêtée, le job Kubernetes de restauration est appliqué. Si un ancien job du même nom existe déjà, il doit être supprimé avant de relancer la restauration. Le job vérifie que la variable BACKUP_FILE est bien définie, contrôle que le fichier demandé existe dans /backup puis copie ce fichier dans /data/app.db.
+
+Commandes utilisées:
+```
+kubectl -n pra delete job sqlite-restore-selected --ignore-not-found
+kubectl apply -f pra/51-job-restore-from-file.yaml
+kubectl -n pra get jobs
+```
+
+Vérifier la bonne exécution du job
+Après lancement, il faut contrôler que le job passe bien à l’état Complete et consulter ses logs. Le message attendu est de type : « Restauration terminée depuis /backup/<nom_du_fichier> ». Cette étape permet de valider que la copie s’est bien déroulée.
+
+Commandes utilisées:
+```
+kubectl -n pra wait --for=condition=complete job/sqlite-restore-selected --timeout=60s
+kubectl -n pra logs job/sqlite-restore-selected
+```
+
+Exemple de résultat attendu:
+Restauration terminée depuis /backup/app-1774605541.db
+
+Redémarrer l’application:
+Une fois la restauration terminée, le déploiement Flask est remis à 1 réplica. Il faut attendre que le rollout soit terminé avant de tester l’application.
+
+Commandes utilisées:
+```
+kubectl -n pra scale deployment/flask --replicas=1
+kubectl -n pra rollout status deployment/flask
+```
+
+Exposer temporairement l’application pour les tests
+Après redémarrage, un port-forward est utilisé pour accéder localement au service Flask et valider le fonctionnement de l’application restaurée.
+
+Commande utilisée :
+```
+kubectl -n pra port-forward svc/flask 8080:80
+```
+
+Valider fonctionnellement la restauration
+Une fois l’application accessible, un test applicatif est réalisé via les endpoints, par exemple /count, afin de vérifier que l’état restauré correspond bien au point de sauvegarde choisi. La comparaison entre l’état avant restauration et l’état après restauration permet de confirmer que le retour arrière a bien été pris en compte.
+
+Commandes utilisées:
+```
+curl http://127.0.0.1:8080/count
+
+curl http://127.0.0.1:8080/
+
+curl http://127.0.0.1:8080/status
+```
+
+Exemple de résultat observé après restauration:
+{"count":0}
+
+Ce résultat confirme que la base active /data/app.db a bien été remplacée par le backup sélectionné.
+
+Si un pod temporaire a été créé pour inspecter le volume de backup, il peut être supprimé à la fin de l’opération.
+
+Commande utilisée:
+```
+kubectl -n pra delete pod backup-inspector
+```
+
+En résumé:
+La procédure consiste donc à identifier le backup cible, arrêter l’application, exécuter un job copiant la sauvegarde depuis le PVC pra-backup vers la base active sur pra-data, redémarrer l’application puis vérifier que les données restaurées correspondent bien à l’état attendu.
+
+Chaîne de commandes synthétique utilisée :
+```
+kubectl apply -f pra/debug-backup-pod.yaml
+kubectl -n pra exec backup-inspector -- ls -lh /backup
+kubectl -n pra scale deployment/flask --replicas=0
+kubectl -n pra delete job sqlite-restore-selected --ignore-not-found
+kubectl apply -f pra/51-job-restore-from-file.yaml
+kubectl -n pra wait --for=condition=complete job/sqlite-restore-selected --timeout=60s
+kubectl -n pra logs job/sqlite-restore-selected
+kubectl -n pra scale deployment/flask --replicas=1
+kubectl -n pra rollout status deployment/flask
+kubectl -n pra port-forward svc/flask 8080:80
+curl http://127.0.0.1:8080/count
+```
+
+Cette procédure permet de réaliser une restauration ciblée, simple et reproductible, en s’appuyant sur les mécanismes natifs de Kubernetes et sur la séparation entre le volume de données actives et le volume de sauvegardes. 
   
 ---------------------------------------------------
 Evaluation

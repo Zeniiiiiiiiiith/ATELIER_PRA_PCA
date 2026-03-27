@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Flask, jsonify, request
 
 DB_PATH = os.getenv("DB_PATH", "/data/app.db")
-BACKUP_DIR = os.getenv("BACKUP_DIR", "/data")
+BACKUP_DIR = os.getenv("BACKUP_DIR", "/backup")
 
 app = Flask(__name__)
 
